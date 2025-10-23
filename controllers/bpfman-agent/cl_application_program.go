@@ -81,9 +81,8 @@ func (r *ClBpfApplicationReconciler) isBeingDeleted() bool {
 	return !r.currentApp.GetDeletionTimestamp().IsZero()
 }
 
-func (r *ClBpfApplicationReconciler) setAppStateConditions(condition metav1.Condition) {
-	r.currentAppState.Status.Conditions = nil
-	meta.SetStatusCondition(&r.currentAppState.Status.Conditions, condition)
+func (r *ClBpfApplicationReconciler) setAppStateConditions(condition metav1.Condition) bool {
+	return meta.SetStatusCondition(&r.currentAppState.Status.Conditions, condition)
 }
 
 func (r *ClBpfApplicationReconciler) setAppLoadStatus(status bpfmaniov1alpha1.AppLoadStatus) {
@@ -187,7 +186,8 @@ func (r *ClBpfApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			// There's no point continuing to reconcile the links if we
 			// can't load the code.
 			r.Logger.Error(err, "failed to reconcileLoad")
-			r.updateBpfAppStateCondition(r, bpfmaniov1alpha1.BpfAppStateCondError)
+			// We can ignore the status from updateBpfAppStateConditions because updateBpfAppStateStatus does a DeepEqual.
+			_ = r.updateBpfAppStateCondition(r, bpfmaniov1alpha1.BpfAppStateCondError)
 			statusChanged, err := r.updateBpfAppStateStatus(ctx, nil)
 			if err != nil {
 				r.Logger.Error(err, "failed to update BpfApplicationState status", "Name", r.currentApp.Name)
@@ -252,8 +252,8 @@ func (r *ClBpfApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			r.Logger.Info("Checking program status", "Name", r.currentAppState.Name, "Status", bpfApplicationStatus)
 		}
 
-		r.updateBpfAppStateCondition(r, bpfApplicationStatus)
-
+		// We can ignore the status from updateBpfAppStateConditions because updateBpfAppStateStatus does a DeepEqual.
+		_ = r.updateBpfAppStateCondition(r, bpfApplicationStatus)
 		// We've completed reconciling all programs and if something has
 		// changed, we need to update the BpfApplicationState.
 		statusChanged, err := r.updateBpfAppStateStatus(ctx, bpfAppStateOriginal)
@@ -450,7 +450,6 @@ func (r *ClBpfApplicationReconciler) createInitialBpfAppState(ctx context.Contex
 }
 
 func (r *ClBpfApplicationReconciler) updateBpfAppStateStatus(ctx context.Context, originalAppState *bpfmaniov1alpha1.ClusterBpfApplicationState) (bool, error) {
-
 	// We've completed reconciling this program and if something has changed.
 	// We need to update the BpfApplicationState Status.
 	if originalAppState == nil || !reflect.DeepEqual(originalAppState.Status, r.currentAppState.Status) {
@@ -592,7 +591,7 @@ func (r *ClBpfApplicationReconciler) initBpfAppStateStatus() error {
 	if err := r.initializeNodeProgramList(); err != nil {
 		return fmt.Errorf("failed to initialize BpfApplicationState program list. Name: %s, Error: %v", r.currentApp.Name, err)
 	}
-	r.updateBpfAppStateCondition(r, bpfmaniov1alpha1.BpfAppStateCondPending)
+	_ = r.updateBpfAppStateCondition(r, bpfmaniov1alpha1.BpfAppStateCondPending)
 	return nil
 }
 

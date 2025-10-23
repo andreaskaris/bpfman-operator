@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/bpfman/bpfman-operator/apis/v1alpha1"
 	bpfmaniov1alpha1 "github.com/bpfman/bpfman-operator/apis/v1alpha1"
 	internal "github.com/bpfman/bpfman-operator/internal"
 	bpfmanHelpers "github.com/bpfman/bpfman-operator/pkg/helpers"
@@ -199,45 +200,85 @@ func (r *ReconcilerCommon[T, TL]) addFinalizer(ctx context.Context, app client.O
 func (r *ReconcilerCommon[T, TL]) updateCondition(
 	ctx context.Context,
 	obj client.Object,
-	conditions *[]metav1.Condition,
+	conditions []metav1.Condition,
 	cond bpfmaniov1alpha1.BpfApplicationConditionType,
 	message string,
 ) (ctrl.Result, error) {
-
 	r.Logger.V(1).Info("updateCondition()", "existing conds", conditions, "new cond", cond)
 
-	if conditions != nil {
-		numConditions := len(*conditions)
-
-		if numConditions == 1 {
-			if (*conditions)[0].Type == string(cond) {
-				r.Logger.Info("No change in status", "existing condition", (*conditions)[0].Type)
-				// No change, so just return false -- not updated
-				return ctrl.Result{}, nil
-			} else {
-				// We're changing the condition, so delete this one.  The
-				// new condition will be added below.
-				*conditions = nil
-			}
-		} else if numConditions > 1 {
-			// We should only ever have one condition, so we shouldn't hit this
-			// case.  However, if we do, log a message, delete the existing
-			// conditions, and add the new one below.
-			r.Logger.Info("more than one condition found", "numConditions", numConditions)
-			*conditions = nil
-		}
-		// if numConditions == 0, just add the new condition below.
+	c := Condition(cond, message)
+	if !meta.SetStatusCondition(&conditions, c) {
+		return ctrl.Result{}, nil
 	}
 
-	meta.SetStatusCondition(conditions, cond.Condition(message))
-
 	r.Logger.Info("Calling KubeAPI to update Program condition", "Type", obj.GetObjectKind().GroupVersionKind().Kind,
-		"Name", obj.GetName(), "condition", cond.Condition(message).Type)
+		"Name", obj.GetName(), "condition", c.Type)
 	if err := r.Status().Update(ctx, obj); err != nil {
 		r.Logger.V(1).Info("failed to set BpfApplication object status...requeuing", "error", err)
-		return ctrl.Result{Requeue: true, RequeueAfter: retryDurationOperator}, nil
+		return ctrl.Result{}, err
 	}
 
 	r.Logger.V(1).Info("condition updated", "new condition", cond)
 	return ctrl.Result{}, nil
+}
+
+// Condition is a helper method to promote any given BpfApplicationConditionType
+// to a full metav1.Condition in an opinionated fashion.
+//
+// TODO: this was created in the early days to provide at least SOME status
+// information to the user, but the hardcoded messages need to be replaced in
+// the future with dynamic and situation-aware messages later.
+//
+// See: https://github.com/bpfman/bpfman/issues/430
+func Condition(b v1alpha1.BpfApplicationConditionType, message string) metav1.Condition {
+	cond := metav1.Condition{}
+
+	switch b {
+	case v1alpha1.BpfAppCondPending:
+		if len(message) == 0 {
+			message = "Waiting for Bpf Application Object to be reconciled on all nodes"
+		}
+		condType := string(v1alpha1.BpfAppCondPending)
+		cond = metav1.Condition{
+			Type:    condType,
+			Status:  metav1.ConditionTrue,
+			Reason:  "Pending",
+			Message: message,
+		}
+	case v1alpha1.BpfAppCondError:
+		if len(message) == 0 {
+			message = "An error has occurred on one or more nodes"
+		}
+		condType := string(v1alpha1.BpfAppCondError)
+		cond = metav1.Condition{
+			Type:    condType,
+			Status:  metav1.ConditionTrue,
+			Reason:  "Error",
+			Message: message,
+		}
+	case v1alpha1.BpfAppCondSuccess:
+		if len(message) == 0 {
+			message = "BPF application configuration successfully applied on all nodes"
+		}
+		condType := string(v1alpha1.BpfAppCondSuccess)
+		cond = metav1.Condition{
+			Type:    condType,
+			Status:  metav1.ConditionTrue,
+			Reason:  "Success",
+			Message: message,
+		}
+	case v1alpha1.BpfAppCondDeleteError:
+		if len(message) == 0 {
+			message = "Deletion failed on one or more nodes"
+		}
+		condType := string(v1alpha1.BpfAppCondDeleteError)
+		cond = metav1.Condition{
+			Type:    condType,
+			Status:  metav1.ConditionTrue,
+			Reason:  "DeleteError",
+			Message: message,
+		}
+	}
+
+	return cond
 }

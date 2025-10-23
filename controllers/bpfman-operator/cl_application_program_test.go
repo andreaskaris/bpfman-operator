@@ -162,7 +162,7 @@ func appProgramReconcile(t *testing.T, multiCondition bool) {
 		Status: bpfmaniov1alpha1.ClBpfApplicationStateStatus{
 			AppLoadStatus: bpfmaniov1alpha1.AppLoadSuccess,
 			Programs:      []bpfmaniov1alpha1.ClBpfApplicationProgramState{},
-			Conditions:    []metav1.Condition{bpfmaniov1alpha1.BpfAppCondSuccess.Condition("")},
+			Conditions:    []metav1.Condition{Condition(bpfmaniov1alpha1.BpfAppCondSuccess, "")},
 		},
 	}
 
@@ -222,11 +222,11 @@ func appProgramReconcile(t *testing.T, multiCondition bool) {
 	if multiCondition {
 		// Add some random conditions and verify that the condition still gets
 		// updated correctly.
-		meta.SetStatusCondition(&app.Status.Conditions, bpfmaniov1alpha1.BpfAppCondDeleteError.Condition("bogus condition #1"))
+		meta.SetStatusCondition(&app.Status.Conditions, Condition(bpfmaniov1alpha1.BpfAppCondDeleteError, "bogus condition #1"))
 		if err := r.Status().Update(ctx, app); err != nil {
 			r.Logger.V(1).Info("failed to set BpfApplication object status")
 		}
-		meta.SetStatusCondition(&app.Status.Conditions, bpfmaniov1alpha1.BpfAppCondError.Condition("bogus condition #2"))
+		meta.SetStatusCondition(&app.Status.Conditions, Condition(bpfmaniov1alpha1.BpfAppCondError, "bogus condition #2"))
 		if err := r.Status().Update(ctx, app); err != nil {
 			r.Logger.V(1).Info("failed to set BpfApplication object status")
 		}

@@ -317,67 +317,6 @@ const (
 	BpfAppCondDeleteError BpfApplicationConditionType = "DeleteError"
 )
 
-// Condition is a helper method to promote any given BpfApplicationConditionType
-// to a full metav1.Condition in an opinionated fashion.
-//
-// TODO: this was created in the early days to provide at least SOME status
-// information to the user, but the hardcoded messages need to be replaced in
-// the future with dynamic and situation-aware messages later.
-//
-// See: https://github.com/bpfman/bpfman/issues/430
-func (b BpfApplicationConditionType) Condition(message string) metav1.Condition {
-	cond := metav1.Condition{}
-
-	switch b {
-	case BpfAppCondPending:
-		if len(message) == 0 {
-			message = "Waiting for Bpf Application Object to be reconciled on all nodes"
-		}
-		condType := string(BpfAppCondPending)
-		cond = metav1.Condition{
-			Type:    condType,
-			Status:  metav1.ConditionTrue,
-			Reason:  "Pending",
-			Message: message,
-		}
-	case BpfAppCondError:
-		if len(message) == 0 {
-			message = "An error has occurred on one or more nodes"
-		}
-		condType := string(BpfAppCondError)
-		cond = metav1.Condition{
-			Type:    condType,
-			Status:  metav1.ConditionTrue,
-			Reason:  "Error",
-			Message: message,
-		}
-	case BpfAppCondSuccess:
-		if len(message) == 0 {
-			message = "BPF application configuration successfully applied on all nodes"
-		}
-		condType := string(BpfAppCondSuccess)
-		cond = metav1.Condition{
-			Type:    condType,
-			Status:  metav1.ConditionTrue,
-			Reason:  "Success",
-			Message: message,
-		}
-	case BpfAppCondDeleteError:
-		if len(message) == 0 {
-			message = "Deletion failed on one or more nodes"
-		}
-		condType := string(BpfAppCondDeleteError)
-		cond = metav1.Condition{
-			Type:    condType,
-			Status:  metav1.ConditionTrue,
-			Reason:  "DeleteError",
-			Message: message,
-		}
-	}
-
-	return cond
-}
-
 // BpfApplicationStateConditionType is used to indicate the status of a BPF
 // application on a given node.
 type BpfApplicationStateConditionType string
@@ -408,57 +347,6 @@ const (
 	// for deletion, and has been successfully unloaded.
 	BpfAppStateCondUnloaded BpfApplicationStateConditionType = "Unloaded"
 )
-
-// Condition is a helper method to promote any given
-// BpfApplicationStateConditionType to a full metav1.Condition in an opinionated
-// fashion.
-func (b BpfApplicationStateConditionType) Condition() metav1.Condition {
-	cond := metav1.Condition{}
-
-	switch b {
-	case BpfAppStateCondPending:
-		condType := string(BpfAppStateCondPending)
-		cond = metav1.Condition{
-			Type:    condType,
-			Status:  metav1.ConditionTrue,
-			Reason:  "Pending",
-			Message: "Not yet complete",
-		}
-	case BpfAppStateCondSuccess:
-		condType := string(BpfAppStateCondSuccess)
-		cond = metav1.Condition{
-			Type:    condType,
-			Status:  metav1.ConditionTrue,
-			Reason:  "Success",
-			Message: "The BPF application has been successfully loaded and attached",
-		}
-	case BpfAppStateCondError:
-		condType := string(BpfAppStateCondError)
-		cond = metav1.Condition{
-			Type:    condType,
-			Status:  metav1.ConditionTrue,
-			Reason:  "Error",
-			Message: "An error has occurred",
-		}
-	case BpfAppStateCondUnloadError:
-		condType := string(BpfAppStateCondUnloadError)
-		cond = metav1.Condition{
-			Type:    condType,
-			Status:  metav1.ConditionTrue,
-			Reason:  "Unload Error",
-			Message: "Unload failed for one or more programs",
-		}
-	case BpfAppStateCondUnloaded:
-		condType := string(BpfAppStateCondUnloaded)
-		cond = metav1.Condition{
-			Type:    condType,
-			Status:  metav1.ConditionTrue,
-			Reason:  "Unloaded",
-			Message: "The application has been successfully unloaded",
-		}
-	}
-	return cond
-}
 
 type AppLoadStatus string
 

@@ -82,9 +82,8 @@ func (r *NsBpfApplicationReconciler) isBeingDeleted() bool {
 	return !r.currentApp.GetDeletionTimestamp().IsZero()
 }
 
-func (r *NsBpfApplicationReconciler) setAppStateConditions(condition metav1.Condition) {
-	r.currentAppState.Status.Conditions = nil
-	meta.SetStatusCondition(&r.currentAppState.Status.Conditions, condition)
+func (r *NsBpfApplicationReconciler) setAppStateConditions(condition metav1.Condition) bool {
+	return meta.SetStatusCondition(&r.currentAppState.Status.Conditions, condition)
 }
 
 func (r *NsBpfApplicationReconciler) setAppLoadStatus(status bpfmaniov1alpha1.AppLoadStatus) {
@@ -187,7 +186,8 @@ func (r *NsBpfApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			// There's no point continuing to reconcile the links if we
 			// can't load the code.
 			r.Logger.Error(err, "failed to reconcileLoad")
-			r.updateBpfAppStateCondition(r, bpfmaniov1alpha1.BpfAppStateCondError)
+			// We can ignore the status from updateBpfAppStateConditions because updateBpfAppStateStatus does a DeepEqual.
+			_ = r.updateBpfAppStateCondition(r, bpfmaniov1alpha1.BpfAppStateCondError)
 			statusChanged, err := r.updateBpfAppStateStatus(ctx, nil)
 			if err != nil {
 				r.Logger.Error(err, "failed to update BpfApplicationState status", "Name", r.currentApp.Name)
@@ -251,8 +251,8 @@ func (r *NsBpfApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			bpfApplicationStatus = r.checkProgramStatus()
 		}
 
-		r.updateBpfAppStateCondition(r, bpfApplicationStatus)
-
+		// We can ignore the status from updateBpfAppStateConditions because updateBpfAppStateStatus does a DeepEqual.
+		_ = r.updateBpfAppStateCondition(r, bpfApplicationStatus)
 		// We've completed reconciling all programs and if something has
 		// changed, we need to update the BpfApplicationState.
 		statusChanged, err := r.updateBpfAppStateStatus(ctx, bpfAppStateOriginal)
@@ -536,7 +536,7 @@ func (r *NsBpfApplicationReconciler) initBpfAppStateStatus() error {
 	if err := r.initializeNodeProgramList(); err != nil {
 		return fmt.Errorf("failed to initialize BpfApplicationState program list. Name: %s, Error: %v", r.currentApp.Name, err)
 	}
-	r.updateBpfAppStateCondition(r, bpfmaniov1alpha1.BpfAppStateCondPending)
+	_ = r.updateBpfAppStateCondition(r, bpfmaniov1alpha1.BpfAppStateCondPending)
 	return nil
 }
 

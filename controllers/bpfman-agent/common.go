@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	"github.com/bpfman/bpfman-operator/apis/v1alpha1"
 	bpfmaniov1alpha1 "github.com/bpfman/bpfman-operator/apis/v1alpha1"
 	bpfmanagentinternal "github.com/bpfman/bpfman-operator/controllers/bpfman-agent/internal"
 	"github.com/bpfman/bpfman-operator/internal"
@@ -94,7 +95,7 @@ type ApplicationReconciler interface {
 	getNode() *v1.Node
 	getNodeSelector() *metav1.LabelSelector
 	getAppStateConditions() *[]metav1.Condition
-	setAppStateConditions(condition metav1.Condition)
+	setAppStateConditions(condition metav1.Condition) bool
 	isBeingDeleted() bool
 	setAppLoadStatus(updateStatus bpfmaniov1alpha1.AppLoadStatus)
 	validateProgramList() error
@@ -173,32 +174,11 @@ func (r *ReconcilerCommon) updateBpfAppStateCondition(
 ) bool {
 	conditions := rec.getAppStateConditions()
 	r.Logger.V(1).Info("updateStatus()", "existing conds", conditions, "new cond", condition)
-
-	if conditions != nil {
-		numConditions := len(*conditions)
-
-		if numConditions == 1 {
-			if (*conditions)[0].Type == string(condition) {
-				// No change, so just return false -- not updated
-				return false
-			} else {
-				// We're changing the condition, so delete this one.  The
-				// new condition will be added below.
-				*conditions = nil
-			}
-		} else if numConditions > 1 {
-			// We should only ever have one condition, so we shouldn't hit this
-			// case.  However, if we do, log a message, delete the existing
-			// conditions, and add the new one below.
-			r.Logger.Info("more than one condition detected", "numConditions", numConditions)
-			*conditions = nil
-		}
-		// if numConditions == 0, just add the new condition below.
+	if rec.setAppStateConditions(StateCondition(condition)) {
+		r.Logger.V(1).Info("condition updated", "new condition", condition, "existing conds", conditions)
+		return true
 	}
-
-	rec.setAppStateConditions(condition.Condition())
-	r.Logger.V(1).Info("condition updated", "new condition", condition, "existing conds", conditions)
-	return true
+	return false
 }
 
 // reconcileProgram is a common function for reconciling programs contained in a
@@ -644,4 +624,55 @@ func (r *ReconcilerCommon) getNetnsId(path string) *uint64 {
 	r.NetnsCache[path] = stat.Ino
 	r.Logger.V(1).Info("Exit getNetnsId", "Path", path, "inode", stat.Ino)
 	return &stat.Ino
+}
+
+// Condition is a helper method to promote any given
+// BpfApplicationStateConditionType to a full metav1.Condition in an opinionated
+// fashion.
+func StateCondition(b v1alpha1.BpfApplicationStateConditionType) metav1.Condition {
+	cond := metav1.Condition{}
+
+	switch b {
+	case v1alpha1.BpfAppStateCondPending:
+		condType := string(v1alpha1.BpfAppStateCondPending)
+		cond = metav1.Condition{
+			Type:    condType,
+			Status:  metav1.ConditionTrue,
+			Reason:  "Pending",
+			Message: "Not yet complete",
+		}
+	case v1alpha1.BpfAppStateCondSuccess:
+		condType := string(v1alpha1.BpfAppStateCondSuccess)
+		cond = metav1.Condition{
+			Type:    condType,
+			Status:  metav1.ConditionTrue,
+			Reason:  "Success",
+			Message: "The BPF application has been successfully loaded and attached",
+		}
+	case v1alpha1.BpfAppStateCondError:
+		condType := string(v1alpha1.BpfAppStateCondError)
+		cond = metav1.Condition{
+			Type:    condType,
+			Status:  metav1.ConditionTrue,
+			Reason:  "Error",
+			Message: "An error has occurred",
+		}
+	case v1alpha1.BpfAppStateCondUnloadError:
+		condType := string(v1alpha1.BpfAppStateCondUnloadError)
+		cond = metav1.Condition{
+			Type:    condType,
+			Status:  metav1.ConditionTrue,
+			Reason:  "Unload Error",
+			Message: "Unload failed for one or more programs",
+		}
+	case v1alpha1.BpfAppStateCondUnloaded:
+		condType := string(v1alpha1.BpfAppStateCondUnloaded)
+		cond = metav1.Condition{
+			Type:    condType,
+			Status:  metav1.ConditionTrue,
+			Reason:  "Unloaded",
+			Message: "The application has been successfully unloaded",
+		}
+	}
+	return cond
 }
